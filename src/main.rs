@@ -1,6 +1,5 @@
 use std::env;
 use std::net::{TcpStream, ToSocketAddrs};
-use std::process::exit;
 use std::time::Duration;
 
 fn main() {
@@ -20,8 +19,6 @@ fn main() {
         };
 
         if addrs.is_empty() {
-            //eprintln!("No socket addresses found for {}", addr_str);
-            //std::process::exit(2);
             continue;
         }
 
@@ -34,7 +31,5 @@ fn main() {
             }
         }
     }
-    println!("All addresses tried; port appears closed or filtered.");
-    exit(2);
 }
 
