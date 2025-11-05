@@ -1,6 +1,11 @@
-use std::net::{TcpStream, ToSocketAddrs};
-use std::time::{Duration, Instant};
-use std::{env, thread};
+mod scans;
+
+use std::net::{IpAddr, Ipv4Addr};
+use std::time::{Instant};
+use std::{env};
+use scans::scan_ports_from_ip;
+
+use crate::scans::{scan_ports_from_ip_range, scan_ports_from_subnet_cidr};
 
 fn main() {
     let timestamp = Instant::now();
@@ -8,36 +13,12 @@ fn main() {
     let host = args
         .get(1)
         .cloned()
-        .unwrap_or_else(|| "192.168.0.69".to_string());
+        .unwrap_or_else(|| "127.0.0.1".to_string());
 
-    let mut handles = Vec::new();
-    for port in 0..=u16::MAX {
-        let host_clone = host.clone();
+    let x = Ipv4Addr::new(192, 168, 0, 100);
+    let y = Ipv4Addr::new(192, 168, 0, 71);
 
-        handles.push(thread::spawn(move || {
-            let addr_str = format!("{}:{}", host_clone, port);
-
-            let addrs: Vec<_> = match addr_str.to_socket_addrs() {
-                Ok(iter) => iter.collect(),
-                Err(e) => {
-                    eprintln!("Failed to resolve {}: {}", addr_str, e);
-                    return;
-                }
-            };
-            
-            let timeout = Duration::from_secs(3);
-
-            for addr in addrs {
-                if TcpStream::connect_timeout(&addr, timeout).is_ok() {
-                    println!("OPEN {}", addr);
-                }
-            }
-        }));
-    }
-
-    for h in handles {
-        let _ = h.join();
-    }
+    scan_ports_from_subnet_cidr(x, 24);
 
     println!("Scan complete.");
     println!("Total time: {:?}", timestamp.elapsed());
