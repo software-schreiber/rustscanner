@@ -1,14 +1,18 @@
 use std::{net::{Ipv4Addr, TcpStream, ToSocketAddrs}, time::Duration};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 use threadpool::ThreadPool;
-use num_cpus;
 
-const MINIMUM_THREADS: usize = 8;
-const THREADS_PER_CORE: usize = 4;
+pub const MAXIMUM_THREADS: usize = 512;
 
-pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
-    let timeout = Duration::from_secs(3);
-    let pool = ThreadPool::new(num_cpus::get().saturating_mul(THREADS_PER_CORE).max(MINIMUM_THREADS));
+pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threads: Option<usize>, thread_pool: Option<Arc<ThreadPool>>) {
+    let is_arc_thread_pool = thread_pool.is_some();
+    let pool = {
+        if is_arc_thread_pool {
+            thread_pool.unwrap()
+        } else {
+            Arc::new(ThreadPool::new(maximum_threads.unwrap_or_else(|| MAXIMUM_THREADS)))
+        }
+    };
     let (tx, rx) = mpsc::channel();
 
     for port in 0..=u16::MAX {
@@ -18,14 +22,13 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
 
         let host_clone = ip_addr.clone();
         let tx_clone = tx.clone();
-        let timeout = timeout;
 
 		pool.execute(move || {
             let addr_str = format!("{}:{}", host_clone, port);
             match addr_str.to_socket_addrs() {
                 Ok(addrs) => {
                     for addr in addrs {
-                        match TcpStream::connect_timeout(&addr, timeout) {
+                        match TcpStream::connect_timeout(&addr, Duration::from_secs(3)) {
                             Ok(_) => {
                                 match tx_clone.send(port) {
                                     Ok(()) => {}
@@ -48,36 +51,39 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
     }
 
     drop(tx);
-    pool.join();
+    if !is_arc_thread_pool {
+        pool.join();
+    }
 
     let mut open_ports: Vec<u16> = rx.iter().collect();
     open_ports.sort_unstable();
     if open_ports.len() < 1 {
-        println!("No open ports found on: {}", ip_addr);
+        //println!("No open ports found on: {}", ip_addr);
     } else {
         println!("Open ports on {}: {:?}", ip_addr, open_ports);
     }
 }
 
-pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool) {
+pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool, maximum_threads: Option<usize>) {
 	let start = u32::from(start_ip);
 	let end = u32::from(end_ip);
-    let pool = ThreadPool::new(num_cpus::get().saturating_mul(THREADS_PER_CORE).max(MINIMUM_THREADS));
+    let pool = Arc::new(ThreadPool::new(maximum_threads.unwrap_or(MAXIMUM_THREADS)));
 
     for ip_num in start..=end {
+        let pool_clone = Arc::clone(&pool);
         pool.execute(move || {
-			scan_ports_from_ip(Ipv4Addr::from(ip_num), scan_all_ports);
+			scan_ports_from_ip(Ipv4Addr::from(ip_num), scan_all_ports, None, Some(pool_clone));
 		});
 	}
 
     pool.join();
 }
 
-pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, scan_all_ports: bool) {
+pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, scan_all_ports: bool, maximum_threads: Option<usize>) {
 	let host_bits = 32 - cidr;
 	let num_ips = 1 << host_bits;
 
-	scan_ports_from_ip_range(subnet, Ipv4Addr::from(u32::from(subnet) + num_ips - 1), scan_all_ports);
+	scan_ports_from_ip_range(subnet, Ipv4Addr::from(u32::from(subnet) + num_ips - 1), scan_all_ports, maximum_threads);
 }
 
 
