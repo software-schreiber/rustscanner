@@ -1,18 +1,27 @@
 use std::{net::{Ipv4Addr, TcpStream, ToSocketAddrs}, time::Duration};
+use std::error::Error;
+use std::fmt::Display;
 use std::sync::mpsc;
 use threadpool::ThreadPool;
 use num_cpus;
 
-pub fn scan_ports_from_ip(ip_addr: Ipv4Addr) {
+const MINIMUM_THREADS: usize = 8;
+const THREADS_PER_CORE: usize = 4;
+
+pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
     let host = ip_addr.to_string();
     let timeout = Duration::from_secs(3);
-    let max_workers = num_cpus::get().saturating_mul(50).max(8);
+    let max_workers = num_cpus::get().saturating_mul(THREADS_PER_CORE).max(MINIMUM_THREADS);
 
     let pool = ThreadPool::new(max_workers);
 
     let (tx, rx) = mpsc::channel();
 
     for port in 0..=u16::MAX {
+        if !scan_all_ports && !COMMON_PORTS.iter().find(|&&x| x.0 == port).is_some() {
+            continue;
+        }
+
         let host_clone = host.clone();
         let tx_clone = tx.clone();
         let timeout = timeout;
@@ -22,15 +31,24 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr) {
             match addr_str.to_socket_addrs() {
                 Ok(addrs) => {
                     for addr in addrs {
-                        if TcpStream::connect_timeout(&addr, timeout).is_ok() {
-                            let _ = tx_clone.send(port);
-                            break;
+                        match TcpStream::connect_timeout(&addr, timeout) {
+                            Ok(_) => {
+                                match tx_clone.send(port) {
+                                    Ok(()) => {}
+                                    Err(error) => {
+                                        println!("Failed sending to address {}: {}", addr.to_string(), error.to_string());
+                                    }
+                                }
+                                break;
+                            }
+                            Err(error) => {
+                                println!("Failed to connect to address {}: {}", addr.to_string(), error.to_string());
+                            }
                         }
                     }
                 }
                 Err(_e) => {}
             }
-            //println!("Finished thread for {}", addr_str);
         });
 
     }
@@ -44,26 +62,25 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr) {
     println!("Open ports on {}: {:?}", host, open_ports);
 }
 
-pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr) {
+pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool) {
 	let start = u32::from(start_ip);
 	let end = u32::from(end_ip);
+    let pool = ThreadPool::new(num_cpus::get().saturating_mul(THREADS_PER_CORE).max(MINIMUM_THREADS));
 
-    let pool = ThreadPool::new(num_cpus::get().saturating_mul(50).max(8));
-
-	for ip_num in start..=end {
-		pool.execute(move || {
-			scan_ports_from_ip(Ipv4Addr::from(ip_num))
+    for ip_num in start..=end {
+        pool.execute(move || {
+			scan_ports_from_ip(Ipv4Addr::from(ip_num), scan_all_ports);
 		});
 	}
 
     pool.join();
 }
 
-pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8) {
+pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, scan_all_ports: bool) {
 	let host_bits = 32 - cidr;
 	let num_ips = 1 << host_bits;
 
-	scan_ports_from_ip_range(subnet, Ipv4Addr::from(u32::from(subnet) + num_ips - 1));
+	scan_ports_from_ip_range(subnet, Ipv4Addr::from(u32::from(subnet) + num_ips - 1), scan_all_ports);
 }
 
 

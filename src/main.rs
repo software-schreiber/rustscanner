@@ -13,12 +13,12 @@ fn main() {
     let host = args
         .get(1)
         .cloned()
-        .unwrap_or_else(|| "127.0.0.1".to_string());
+        .unwrap_or_else(|| "192.168.0.1".to_string());
 
-    let x = Ipv4Addr::new(192, 168, 0, 100);
+    let x = Ipv4Addr::new(192, 168, 0, 1);
     let y = Ipv4Addr::new(192, 168, 0, 71);
 
-    scan_ports_from_subnet_cidr(x, 24);
+    scan_ports_from_subnet_cidr(x, 24, false);
 
     println!("Scan complete.");
     println!("Total time: {:?}", timestamp.elapsed());
