@@ -54,7 +54,11 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
 
     let mut open_ports: Vec<u16> = rx.iter().collect();
     open_ports.sort_unstable();
-    println!("Open ports on {}: {:?}", ip_addr, open_ports);
+    if open_ports.len() < 1 {
+        println!("No open ports found on: {}", ip_addr);
+    } else {
+        println!("Open ports on {}: {:?}", ip_addr, open_ports);
+    }
 }
 
 pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool) {
