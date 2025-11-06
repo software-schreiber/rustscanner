@@ -1,6 +1,4 @@
 use std::{net::{Ipv4Addr, TcpStream, ToSocketAddrs}, time::Duration};
-use std::error::Error;
-use std::fmt::Display;
 use std::sync::mpsc;
 use threadpool::ThreadPool;
 use num_cpus;
@@ -31,13 +29,13 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
                             Ok(_) => {
                                 match tx_clone.send(port) {
                                     Ok(()) => {}
-                                    Err(error) => {
+                                    Err(_error) => {
                                         //println!("Failed sending to address {}: {}", addr.to_string(), error.to_string());
                                     }
                                 }
                                 break;
                             }
-                            Err(error) => {
+                            Err(_error) => {
                                 //println!("Failed to connect to address {}: {}", addr.to_string(), error.to_string());
                             }
                         }

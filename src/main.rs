@@ -1,6 +1,6 @@
 mod scans;
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
+use std::net::{IpAddr, Ipv4Addr,UdpSocket};
 use std::time::{Instant};
 use std::{env};
 use scans::{scan_ports_from_ip, scan_ports_from_ip_range, scan_ports_from_subnet_cidr};
