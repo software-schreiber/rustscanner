@@ -13,7 +13,7 @@ fn main() {
 
     let first_argument = args.get(1).unwrap();
     if first_argument.eq("help") || first_argument.eq("?") {
-        println!("Syntax:   rscan <usage> [options]");
+        println!("Syntax:   rustscanner <usage> [options]");
         println!();
         println!("Usage:    help                            Shows this text");
         println!("          this                            Scans important ports of the current device");
