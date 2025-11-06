@@ -5,19 +5,21 @@ use std::time::{Instant};
 use std::{env};
 use scans::{MAXIMUM_THREADS, scan_ports_from_ip, scan_ports_from_ip_range, scan_ports_from_subnet_cidr};
 
+const MAXIMUM_THREADS_FOR_SINGLE_IP: usize = 50;
+
 fn main() {
     let timestamp = Instant::now();
     let args: Vec<String> = env::args().collect();
 
     let scan_all_ports: bool = args.contains(&String::from("-a"));
-    let maximum_threads: usize = {
+    let maximum_threads: (usize, bool) = {
         if args.contains(&String::from("-t")) {
-            args.get(args.iter().position(|x| x == "-t").unwrap() + 1)
+            (args.get(args.iter().position(|x| x == "-t").unwrap() + 1)
                 .unwrap()
                 .parse::<usize>()
-                .unwrap()
+                .unwrap(), true)
         } else {
-            MAXIMUM_THREADS
+            (MAXIMUM_THREADS, false)
         }
     };
 
@@ -44,20 +46,47 @@ fn main() {
                 },
             },
             scan_all_ports,
-            Some(maximum_threads),
+            {
+                if !maximum_threads.1 {
+                    Some(MAXIMUM_THREADS_FOR_SINGLE_IP)
+                } else {
+                    Some(maximum_threads.0)
+                }
+            },
             None
         );
     } else if first_argument.eq("device") {
         let ip_addr: Ipv4Addr = args.get(2).unwrap().parse::<Ipv4Addr>().unwrap();
-        scan_ports_from_ip(ip_addr, scan_all_ports, Some(maximum_threads), None);
+        scan_ports_from_ip(
+            ip_addr,
+            scan_all_ports,
+            {
+                if !maximum_threads.1 {
+                    Some(MAXIMUM_THREADS_FOR_SINGLE_IP)
+                } else {
+                    Some(maximum_threads.0)
+                }
+            },
+            None
+        );
     } else if first_argument.eq("range") {
         let first_ip_addr: Ipv4Addr = args.get(2).unwrap().parse::<Ipv4Addr>().unwrap();
         let last_ip_addr: Ipv4Addr = args.get(3).unwrap().parse::<Ipv4Addr>().unwrap();
-        scan_ports_from_ip_range(first_ip_addr, last_ip_addr, scan_all_ports, Some(maximum_threads));
+        scan_ports_from_ip_range(
+            first_ip_addr,
+            last_ip_addr,
+            scan_all_ports,
+            Some(maximum_threads.0)
+        );
     } else if first_argument.eq("subnet") {
         let first_ip_addr: Ipv4Addr = args.get(2).unwrap().parse::<Ipv4Addr>().unwrap();
         let range = args.get(3).unwrap().parse::<u8>().unwrap();
-        scan_ports_from_subnet_cidr(first_ip_addr, range, scan_all_ports, Some(maximum_threads));
+        scan_ports_from_subnet_cidr(
+            first_ip_addr,
+            range,
+            scan_all_ports,
+            Some(maximum_threads.0)
+        );
     } else {
         eprintln!("Unknown first argument: {}; Type 'help' or '?' to see available options", first_argument);
         std::process::exit(1);
