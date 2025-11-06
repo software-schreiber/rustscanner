@@ -53,6 +53,7 @@ fn main() {
                     Some(maximum_threads.0)
                 }
             },
+            None,
             None
         );
     } else if first_argument.eq("device") {
@@ -67,6 +68,7 @@ fn main() {
                     Some(maximum_threads.0)
                 }
             },
+            None,
             None
         );
     } else if first_argument.eq("range") {
@@ -76,7 +78,8 @@ fn main() {
             first_ip_addr,
             last_ip_addr,
             scan_all_ports,
-            Some(maximum_threads.0)
+            Some(maximum_threads.0),
+            None
         );
     } else if first_argument.eq("subnet") {
         let first_ip_addr: Ipv4Addr = args.get(2).unwrap().parse::<Ipv4Addr>().unwrap();
@@ -91,6 +94,6 @@ fn main() {
         eprintln!("Unknown first argument: {}; Type 'help' or '?' to see available options", first_argument);
         std::process::exit(1);
     }
-    println!("Scan complete.");
+    println!("\nScan complete.");
     println!("Total time: {:?}", timestamp.elapsed());
 }

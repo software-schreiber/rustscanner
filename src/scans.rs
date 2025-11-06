@@ -1,10 +1,24 @@
 use std::{net::{Ipv4Addr, TcpStream, ToSocketAddrs}, time::Duration};
-use std::sync::{mpsc, Arc};
+use std::net::IpAddr;
+use std::sync::{mpsc, Arc, Mutex, MutexGuard};
+use ping::ping;
 use threadpool::ThreadPool;
 
 pub const MAXIMUM_THREADS: usize = 512;
 
-pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threads: Option<usize>, thread_pool: Option<Arc<ThreadPool>>) {
+fn print_ports(ip_addr: Ipv4Addr, open_ports: Vec<u16>) {
+    println!("\nOpen ports on {}:", ip_addr);
+    for port in open_ports {
+        let found_protocol_details = COMMON_PORTS.iter().find(|&&x| x.0 == port);
+        if let Some(protocol_details) = found_protocol_details {
+            println!("\t{}\t{}", protocol_details.0, protocol_details.1);
+        } else {
+            println!("\t{}", port);
+        }
+    }
+}
+
+pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threads: Option<usize>, thread_pool: Option<Arc<ThreadPool>>, mutex_print: Option<&Arc<Mutex<bool>>>) {
     let is_arc_thread_pool = thread_pool.is_some();
     let pool = {
         if is_arc_thread_pool {
@@ -32,19 +46,15 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threa
                             Ok(_) => {
                                 match tx_clone.send(port) {
                                     Ok(()) => {}
-                                    Err(_error) => {
-                                        //println!("Failed sending to address {}: {}", addr.to_string(), error.to_string());
-                                    }
+                                    Err(_error) => {}
                                 }
                                 break;
                             }
-                            Err(_error) => {
-                                //println!("Failed to connect to address {}: {}", addr.to_string(), error.to_string());
-                            }
+                            Err(_error) => {}
                         }
                     }
                 }
-                Err(_e) => {}
+                Err(_error) => {}
             }
         });
 
@@ -57,22 +67,42 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threa
 
     let mut open_ports: Vec<u16> = rx.iter().collect();
     open_ports.sort_unstable();
-    if open_ports.len() < 1 {
+    if open_ports.len() == 0 {
         //println!("No open ports found on: {}", ip_addr);
     } else {
-        println!("Open ports on {}: {:?}", ip_addr, open_ports);
+        if mutex_print.is_some() {
+            let mutex_print_handle: MutexGuard<bool> = mutex_print.unwrap().lock().unwrap();
+            print_ports(ip_addr, open_ports);
+            drop(mutex_print_handle);
+        } else {
+            print_ports(ip_addr, open_ports);
+        }
     }
 }
 
-pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool, maximum_threads: Option<usize>) {
+pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool, maximum_threads: Option<usize>, mutex_print: Option<&Arc<Mutex<bool>>>) {
 	let start = u32::from(start_ip);
 	let end = u32::from(end_ip);
     let pool = Arc::new(ThreadPool::new(maximum_threads.unwrap_or(MAXIMUM_THREADS)));
+    let mutex_print = {
+        if mutex_print.is_some() {
+            mutex_print.unwrap().clone()
+        } else {
+            Arc::new(Mutex::new(false))
+        }
+    };
 
     for ip_num in start..=end {
         let pool_clone = Arc::clone(&pool);
+        let mutex_print_clone = mutex_print.clone();
         pool.execute(move || {
-			scan_ports_from_ip(Ipv4Addr::from(ip_num), scan_all_ports, None, Some(pool_clone));
+            match ping(IpAddr::V4(Ipv4Addr::from(ip_num)), Some(Duration::new(1, 0)), None, None, None, None) {
+                Ok(_) => {scan_ports_from_ip(Ipv4Addr::from(ip_num), scan_all_ports, None, Some(pool_clone), Some(&mutex_print_clone));}
+                Err(error) => {
+                    return;
+                }
+            }
+
 		});
 	}
 
@@ -82,8 +112,9 @@ pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_p
 pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, scan_all_ports: bool, maximum_threads: Option<usize>) {
 	let host_bits = 32 - cidr;
 	let num_ips = 1 << host_bits;
+    let mutex_print = Arc::new(Mutex::new(false));
 
-	scan_ports_from_ip_range(subnet, Ipv4Addr::from(u32::from(subnet) + num_ips - 1), scan_all_ports, maximum_threads);
+	scan_ports_from_ip_range(subnet, Ipv4Addr::from(u32::from(subnet) + num_ips - 1), scan_all_ports, maximum_threads, Some(&mutex_print));
 }
 
 
