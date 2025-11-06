@@ -9,12 +9,8 @@ const MINIMUM_THREADS: usize = 8;
 const THREADS_PER_CORE: usize = 4;
 
 pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
-    let host = ip_addr.to_string();
     let timeout = Duration::from_secs(3);
-    let max_workers = num_cpus::get().saturating_mul(THREADS_PER_CORE).max(MINIMUM_THREADS);
-
-    let pool = ThreadPool::new(max_workers);
-
+    let pool = ThreadPool::new(num_cpus::get().saturating_mul(THREADS_PER_CORE).max(MINIMUM_THREADS));
     let (tx, rx) = mpsc::channel();
 
     for port in 0..=u16::MAX {
@@ -22,7 +18,7 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
             continue;
         }
 
-        let host_clone = host.clone();
+        let host_clone = ip_addr.clone();
         let tx_clone = tx.clone();
         let timeout = timeout;
 
@@ -36,13 +32,13 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
                                 match tx_clone.send(port) {
                                     Ok(()) => {}
                                     Err(error) => {
-                                        println!("Failed sending to address {}: {}", addr.to_string(), error.to_string());
+                                        //println!("Failed sending to address {}: {}", addr.to_string(), error.to_string());
                                     }
                                 }
                                 break;
                             }
                             Err(error) => {
-                                println!("Failed to connect to address {}: {}", addr.to_string(), error.to_string());
+                                //println!("Failed to connect to address {}: {}", addr.to_string(), error.to_string());
                             }
                         }
                     }
@@ -54,12 +50,11 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool) {
     }
 
     drop(tx);
-
     pool.join();
 
     let mut open_ports: Vec<u16> = rx.iter().collect();
     open_ports.sort_unstable();
-    println!("Open ports on {}: {:?}", host, open_ports);
+    println!("Open ports on {}: {:?}", ip_addr, open_ports);
 }
 
 pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool) {
