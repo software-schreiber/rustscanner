@@ -1,5 +1,6 @@
 use std::{net::{Ipv4Addr, TcpStream, ToSocketAddrs}, time::Duration};
 use std::net::IpAddr;
+use std::process::exit;
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use ping::ping;
 use threadpool::ThreadPool;
@@ -99,7 +100,7 @@ pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_p
             match ping(IpAddr::V4(Ipv4Addr::from(ip_num)), Some(Duration::new(1, 0)), None, None, None, None) {
                 Ok(_) => {scan_ports_from_ip(Ipv4Addr::from(ip_num), scan_all_ports, None, Some(pool_clone), Some(&mutex_print_clone));}
                 Err(error) => {
-                    if error.to_string().contains("permission") {
+                    if error.to_string().contains("permitted") {
                         println!("{}", error);
                         println!("Try using sudo or run as administrator")
                     }
