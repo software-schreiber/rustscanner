@@ -10,6 +10,10 @@ const MAXIMUM_THREADS_FOR_SINGLE_IP: usize = 50;
 fn main() {
     let timestamp = Instant::now();
     let args: Vec<String> = env::args().collect();
+    if args.len() <= 1 {
+        println!("There should be at least one argument. Type 'help' to get extended information");
+        return
+    }
 
     let scan_all_ports: bool = args.contains(&String::from("-a"));
     let maximum_threads: (usize, bool) = {
@@ -22,6 +26,7 @@ fn main() {
             (MAXIMUM_THREADS, false)
         }
     };
+    let ping_prohibited = args.contains(&String::from("-p"));
 
     let first_argument = args.get(1).unwrap();
     if first_argument.eq("help") || first_argument.eq("?") {
@@ -34,6 +39,7 @@ fn main() {
         println!("          subnet <IP> <CIDR>              Scans important ports of in subnet");
         println!("Options:  -a                              Scan all ports (time consuming)");
         println!("          -t <NUMBER>                     Set the number of threads to use for scanning (default: {})", MAXIMUM_THREADS);
+        println!("          -p                              Prohibit the use of pinging");
         std::process::exit(0);
     } else if first_argument.eq("this") {
         let dummy_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -57,6 +63,9 @@ fn main() {
             None
         );
     } else if first_argument.eq("device") {
+        if args.len() < 3 {
+            println!("The argument 'device' requires one more argument. Type 'help' to get extended information");
+        }
         let ip_addr: Ipv4Addr = args.get(2).unwrap().parse::<Ipv4Addr>().unwrap();
         scan_ports_from_ip(
             ip_addr,
@@ -72,26 +81,34 @@ fn main() {
             None
         );
     } else if first_argument.eq("range") {
+        if args.len() < 4 {
+            println!("The argument 'device' requires two extra arguments. Type 'help' to get extended information");
+        }
         let first_ip_addr: Ipv4Addr = args.get(2).unwrap().parse::<Ipv4Addr>().unwrap();
         let last_ip_addr: Ipv4Addr = args.get(3).unwrap().parse::<Ipv4Addr>().unwrap();
         scan_ports_from_ip_range(
             first_ip_addr,
             last_ip_addr,
             scan_all_ports,
+            ping_prohibited,
             Some(maximum_threads.0),
             None
         );
     } else if first_argument.eq("subnet") {
+        if args.len() < 4 {
+            println!("The argument 'device' requires two extra arguments. Type 'help' to get extended information");
+        }
         let first_ip_addr: Ipv4Addr = args.get(2).unwrap().parse::<Ipv4Addr>().unwrap();
         let range = args.get(3).unwrap().parse::<u8>().unwrap();
         scan_ports_from_subnet_cidr(
             first_ip_addr,
             range,
             scan_all_ports,
+            ping_prohibited,
             Some(maximum_threads.0)
         );
     } else {
-        eprintln!("Unknown first argument: {}; Type 'help' or '?' to see available options", first_argument);
+        println!("Unknown first argument: {}; Type 'help' or '?' to see available options", first_argument);
         std::process::exit(1);
     }
     println!("\nScan complete.");

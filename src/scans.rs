@@ -1,6 +1,8 @@
 use std::{net::{Ipv4Addr, TcpStream, ToSocketAddrs}, time::Duration};
 use std::net::IpAddr;
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::Relaxed;
 use ping::ping;
 use threadpool::ThreadPool;
 
@@ -80,7 +82,7 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threa
     }
 }
 
-pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool, maximum_threads: Option<usize>, mutex_print: Option<&Arc<Mutex<bool>>>) {
+pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool, ping_prohibited: bool, maximum_threads: Option<usize>, mutex_print: Option<&Arc<Mutex<bool>>>) {
 	let start = u32::from(start_ip);
 	let end = u32::from(end_ip);
     let pool = Arc::new(ThreadPool::new(maximum_threads.unwrap_or(MAXIMUM_THREADS)));
@@ -91,20 +93,44 @@ pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_p
             Arc::new(Mutex::new(false))
         }
     };
+    let sudo_missing_printed = Arc::new(AtomicBool::new(false));
 
     for ip_num in start..=end {
         let pool_clone = Arc::clone(&pool);
         let mutex_print_clone = mutex_print.clone();
+        let sudo_missing_printed_clone = Arc::clone(&sudo_missing_printed);
         pool.execute(move || {
-            match ping(IpAddr::V4(Ipv4Addr::from(ip_num)), Some(Duration::new(1, 0)), None, None, None, None) {
-                Ok(_) => {scan_ports_from_ip(Ipv4Addr::from(ip_num), scan_all_ports, None, Some(pool_clone), Some(&mutex_print_clone));}
-                Err(error) => {
-                    if error.to_string().contains("permitted") {
-                        println!("{}", error);
-                        println!("Try using sudo or run as administrator")
+            if !ping_prohibited {
+                match ping(IpAddr::V4(Ipv4Addr::from(ip_num)), Some(Duration::new(1, 0)), None, None, None, None) {
+                    Ok(_) => {
+                        scan_ports_from_ip(
+                            Ipv4Addr::from(ip_num),
+                            scan_all_ports,
+                            None,
+                            Some(pool_clone),
+                            Some(&mutex_print_clone)
+                        );
+                    },
+                    Err(error) => {
+                        if error.to_string().contains("os error 10060") {
+                            if !sudo_missing_printed_clone.load(Relaxed) {
+                                sudo_missing_printed_clone.store(true, Relaxed);
+                                println!("Try using sudo or run as administrator to use ping for faster network responses");
+                            }
+                        } else {
+                            println!("Ping failed: {}", error);
+                        }
+                        return;
                     }
-                    return;
                 }
+            } else {
+                scan_ports_from_ip(
+                    Ipv4Addr::from(ip_num),
+                    scan_all_ports,
+                    None,
+                    Some(pool_clone),
+                    Some(&mutex_print_clone)
+                );
             }
 		});
 	}
@@ -112,12 +138,19 @@ pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_p
     pool.join();
 }
 
-pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, scan_all_ports: bool, maximum_threads: Option<usize>) {
+pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, scan_all_ports: bool, ping_prohibited: bool, maximum_threads: Option<usize>) {
 	let host_bits = 32 - cidr;
 	let num_ips = 1 << host_bits;
     let mutex_print = Arc::new(Mutex::new(false));
 
-	scan_ports_from_ip_range(subnet, Ipv4Addr::from(u32::from(subnet) + num_ips - 1), scan_all_ports, maximum_threads, Some(&mutex_print));
+	scan_ports_from_ip_range(
+        subnet,
+        Ipv4Addr::from(u32::from(subnet) + num_ips - 1),
+        scan_all_ports,
+        ping_prohibited,
+        maximum_threads,
+        Some(&mutex_print)
+    );
 }
 
 
