@@ -1,6 +1,5 @@
 use std::{net::{Ipv4Addr, TcpStream, ToSocketAddrs}, time::Duration};
 use std::net::IpAddr;
-use std::process::exit;
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use ping::ping;
 use threadpool::ThreadPool;
