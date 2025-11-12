@@ -39,7 +39,7 @@ fn main() {
         println!("          subnet <IP> <CIDR>              Scans important ports of in subnet");
         println!("Options:  -a                              Scan all ports (time consuming)");
         println!("          -t <NUMBER>                     Set the number of threads to use for scanning (default: {})", MAXIMUM_THREADS);
-        println!("          -p                              Prohibit the use of pinging");
+        println!("          -p                              Prohibit the use of pinging (takes more time)");
         std::process::exit(0);
     } else if first_argument.eq("this") {
         let dummy_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -67,9 +67,11 @@ fn main() {
             println!("The argument 'device' requires one more argument. Type 'help' to get extended information");
         }
         let ip_addr: Ipv4Addr = args.get(2).unwrap().parse::<Ipv4Addr>().unwrap();
-        scan_ports_from_ip(
+        scan_ports_from_ip_range(
+            ip_addr,
             ip_addr,
             scan_all_ports,
+            ping_prohibited,
             {
                 if !maximum_threads.1 {
                     Some(MAXIMUM_THREADS_FOR_SINGLE_IP)
@@ -77,7 +79,6 @@ fn main() {
                     Some(maximum_threads.0)
                 }
             },
-            None,
             None
         );
     } else if first_argument.eq("range") {

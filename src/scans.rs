@@ -2,7 +2,7 @@ use std::{net::{Ipv4Addr, TcpStream, ToSocketAddrs}, time::Duration};
 use std::net::IpAddr;
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering::Relaxed;
+use std::sync::atomic::Ordering::{Relaxed};
 use ping::ping;
 use threadpool::ThreadPool;
 
@@ -48,15 +48,15 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threa
                             Ok(_) => {
                                 match tx_clone.send(port) {
                                     Ok(()) => {}
-                                    Err(_error) => {}
+                                    Err(_) => {}
                                 }
                                 break;
                             }
-                            Err(_error) => {}
+                            Err(_) => {}
                         }
                     }
                 }
-                Err(_error) => {}
+                Err(_) => {}
             }
         });
 
@@ -70,7 +70,6 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threa
     let mut open_ports: Vec<u16> = rx.iter().collect();
     open_ports.sort_unstable();
     if open_ports.len() == 0 {
-        //println!("No open ports found on: {}", ip_addr);
     } else {
         if mutex_print.is_some() {
             let mutex_print_handle: MutexGuard<bool> = mutex_print.unwrap().lock().unwrap();
@@ -112,13 +111,13 @@ pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_p
                         );
                     },
                     Err(error) => {
-                        if error.to_string().contains("os error 10060") {
-                            if !sudo_missing_printed_clone.load(Relaxed) {
-                                sudo_missing_printed_clone.store(true, Relaxed);
-                                println!("Try using sudo or run as administrator to use ping for faster network responses");
+                        if error.to_string().contains("(os error 1)") || error.to_string().contains("(os error 10060)") {
+                            match sudo_missing_printed_clone.compare_exchange(false, true, Relaxed, Relaxed) {
+                                Ok(_) => {
+                                    eprintln!("Try using sudo or run as administrator to use ping for faster network responses");
+                                }
+                                Err(_) => {}
                             }
-                        } else {
-                            println!("Ping failed: {}", error);
                         }
                         return;
                     }
