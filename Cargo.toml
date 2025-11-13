@@ -1,7 +1,11 @@
 [package]
 name = "rustscanner"
-version = "0.1.0"
+version = "1.0.1"
 edition = "2024"
+
+[[bin]]
+name = "rustscanner"
+path = "./rust/src/main.rs"
 
 [dependencies]
 threadpool = "1.8.0"
