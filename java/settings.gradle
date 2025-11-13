@@ -1,0 +1,12 @@
+pluginManagement {
+	repositories {
+		gradlePluginPortal()
+		mavenCentral();
+	}
+	plugins {
+		id 'com.diffplug.spotless' version "${spotless_version}"
+		id 'com.gradleup.shadow' version "${shadow_version}"
+	}
+}
+
+rootProject.name = 'softwareschreiber-networkscanner'

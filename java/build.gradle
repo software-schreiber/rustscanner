@@ -1,0 +1,87 @@
+plugins {
+	id 'java'
+	id 'application'
+	id 'com.diffplug.spotless'
+	id 'checkstyle'
+	id 'com.gradleup.shadow'
+	id 'maven-publish'
+}
+
+checkstyle {
+	configFile = rootProject.file('checkstyle.xml')
+	toolVersion = project.checkstyle_version
+}
+
+spotless {
+	lineEndings = com.diffplug.spotless.LineEnding.UNIX
+
+	java {
+		removeUnusedImports()
+		importOrder('java.', 'javax.', '', 'softwareschreiber.')
+		leadingSpacesToTabs()
+		trimTrailingWhitespace()
+	}
+}
+
+version = rootProject.version
+group = 'softwareschreiber.networkscanner'
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.encoding = 'UTF-8'
+	it.options.release = 21
+}
+
+java {
+	withSourcesJar()
+	withJavadocJar()
+
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+
+	if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
+		toolchain {
+			languageVersion = JavaLanguageVersion.of(21)
+		}
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	compileOnly "org.jetbrains:annotations:${jetbrains_annotations_version}"
+	runtimeOnly "org.tinylog:slf4j-tinylog:${tinylog_version}"
+	runtimeOnly "org.tinylog:tinylog-impl:${tinylog_version}"
+	implementation "org.tinylog:tinylog-api:${tinylog_version}"
+}
+
+test {
+	useJUnitPlatform()
+}
+
+application {
+	mainClass = 'softwareschreiber.networkscanner.Main'
+}
+
+jar {
+	processResources.exclude('tinylog-dev.properties')
+}
+
+javadoc {
+	failOnError = false
+	options.addBooleanOption('html5', true)
+
+	// disable 'missing' warnings
+	options.addStringOption('Xdoclint:all,-missing', '-quiet')
+}
+
+assemble.dependsOn javadocJar
+
+publishing {
+	publications {
+		"$project.name"(MavenPublication) {
+			from components.java
+		}
+	}
+}

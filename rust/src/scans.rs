@@ -39,7 +39,7 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threa
         let host_clone = ip_addr.clone();
         let tx_clone = tx.clone();
 
-		pool.execute(move || {
+        pool.execute(move || {
             let addr_str = format!("{}:{}", host_clone, port);
             match addr_str.to_socket_addrs() {
                 Ok(addrs) => {
@@ -82,8 +82,8 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, maximum_threa
 }
 
 pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool, ping_prohibited: bool, maximum_threads: Option<usize>, mutex_print: Option<&Arc<Mutex<bool>>>) {
-	let start = u32::from(start_ip);
-	let end = u32::from(end_ip);
+    let start = u32::from(start_ip);
+    let end = u32::from(end_ip);
     let pool = Arc::new(ThreadPool::new(maximum_threads.unwrap_or(MAXIMUM_THREADS)));
     let mutex_print = {
         if mutex_print.is_some() {
@@ -131,18 +131,18 @@ pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_p
                     Some(&mutex_print_clone)
                 );
             }
-		});
-	}
+        });
+    }
 
     pool.join();
 }
 
 pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, scan_all_ports: bool, ping_prohibited: bool, maximum_threads: Option<usize>) {
-	let host_bits = 32 - cidr;
-	let num_ips = 1 << host_bits;
+    let host_bits = 32 - cidr;
+    let num_ips = 1 << host_bits;
     let mutex_print = Arc::new(Mutex::new(false));
 
-	scan_ports_from_ip_range(
+    scan_ports_from_ip_range(
         subnet,
         Ipv4Addr::from(u32::from(subnet) + num_ips - 1),
         scan_all_ports,
@@ -213,7 +213,7 @@ const COMMON_PORTS: &[(u16, &str)] = &[
     (5900, "VNC"),
     (6379, "Redis"),
     (8000, "Alternate HTTP / admin"),
-	(8006, "Proxmox VE web GUI"),
+    (8006, "Proxmox VE web GUI"),
     (8008, "Alternate HTTP"),
     (8080, "Alternate HTTP / proxy"),
     (8443, "HTTPS-alt / admin"),
