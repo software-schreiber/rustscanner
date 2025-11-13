@@ -106,7 +106,9 @@ class NetworkScanner {
 		for (Future<?> future : futures) {
 			try {
 				future.get();
-			} catch (Exception ignored) { }
+			} catch (Exception ignored) {
+				// ignore
+			}
 		}
 	}
 }
