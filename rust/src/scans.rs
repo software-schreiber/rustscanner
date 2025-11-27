@@ -85,8 +85,7 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, ping_prohibit
 
     let mut open_ports: Vec<u16> = rx.iter().collect();
     open_ports.sort_unstable();
-    if open_ports.len() == 0 {
-    } else {
+    if open_ports.len() != 0 {
         if mutex_print.is_some() {
             let mutex_print_handle: MutexGuard<bool> = mutex_print.unwrap().lock().unwrap();
             print_ports(ip_addr, open_ports);
