@@ -4,8 +4,25 @@ use std::net::{IpAddr, Ipv4Addr,UdpSocket};
 use std::time::{Instant};
 use std::{env};
 use scans::{MAXIMUM_THREADS, scan_ports_from_ip, scan_ports_from_ip_range, scan_ports_from_subnet_cidr};
+struct Flags {
+	scan_all_ports: bool,
+	ping_prohibited: bool,
+	maximum_threads: (usize, bool),
+}
 
-const MAXIMUM_THREADS_FOR_SINGLE_IP: usize = 50;
+impl Flags {
+	fn new(scan_all_ports: bool, ping_prohibited: bool, maximum_threads: (usize, bool)) -> Flags {
+		Flags {
+			scan_all_ports,
+			ping_prohibited,
+			maximum_threads,
+		}
+	}
+
+    fn clone(&self) -> Flags {
+        Flags::new(self.scan_all_ports.clone(), self.ping_prohibited.clone(), self.maximum_threads.clone())
+    }
+}
 
 fn main() {
     let timestamp = Instant::now();
@@ -15,18 +32,24 @@ fn main() {
         return
     }
 
-    let scan_all_ports: bool = args.contains(&String::from("-a"));
-    let maximum_threads: (usize, bool) = {
-        if args.contains(&String::from("-t")) {
-            (args.get(args.iter().position(|x| x == "-t").unwrap() + 1)
-                .unwrap()
-                .parse::<usize>()
-                .unwrap(), true)
-        } else {
-            (MAXIMUM_THREADS, false)
-        }
-    };
-    let ping_prohibited = args.contains(&String::from("-p"));
+	let flags = Flags::new(
+		args.contains(&String::from("-a")),
+		args.contains(&String::from("-p")),
+		{
+			if args.contains(&String::from("-t")) {
+				(
+					args.get(args.iter().position(|x| x == "-t").unwrap() + 1)
+						.unwrap()
+						.parse::<usize>()
+						.unwrap(),
+					true
+				)
+			} else {
+				(MAXIMUM_THREADS, false).into()
+			}
+		}
+	);
+
 
     let first_argument = args.get(1).unwrap();
     if first_argument.eq("help") || first_argument.eq("?") {
@@ -51,15 +74,7 @@ fn main() {
                     panic!("Obtained other address than IPv4");
                 },
             },
-            scan_all_ports,
-            ping_prohibited,
-            {
-                if !maximum_threads.1 {
-                    Some(MAXIMUM_THREADS_FOR_SINGLE_IP)
-                } else {
-                    Some(maximum_threads.0)
-                }
-            },
+            flags,
             None,
             None,
             None
@@ -69,18 +84,11 @@ fn main() {
             println!("The argument 'device' requires one more argument. Type 'help' to get extended information");
         }
         let ip_addr: Ipv4Addr = args.get(2).unwrap().parse::<Ipv4Addr>().unwrap();
-        scan_ports_from_ip_range(
+        scan_ports_from_ip(
             ip_addr,
-            ip_addr,
-            scan_all_ports,
-            ping_prohibited,
-            {
-                if !maximum_threads.1 {
-                    Some(MAXIMUM_THREADS_FOR_SINGLE_IP)
-                } else {
-                    Some(maximum_threads.0)
-                }
-            },
+            flags,
+            None,
+            None,
             None
         );
     } else if first_argument.eq("range") {
@@ -92,9 +100,7 @@ fn main() {
         scan_ports_from_ip_range(
             first_ip_addr,
             last_ip_addr,
-            scan_all_ports,
-            ping_prohibited,
-            Some(maximum_threads.0),
+            flags,
             None
         );
     } else if first_argument.eq("subnet") {
@@ -106,9 +112,7 @@ fn main() {
         scan_ports_from_subnet_cidr(
             first_ip_addr,
             range,
-            scan_all_ports,
-            ping_prohibited,
-            Some(maximum_threads.0)
+            flags
         );
     } else {
         println!("Unknown first argument: {}; Type 'help' or '?' to see available options", first_argument);

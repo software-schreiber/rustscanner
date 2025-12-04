@@ -5,8 +5,11 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::{Relaxed};
 use ping::ping;
 use threadpool::ThreadPool;
+use crate::Flags;
 
 pub const MAXIMUM_THREADS: usize = 512;
+const MAXIMUM_THREADS_FOR_SINGLE_IP: usize = 50;
+
 
 fn print_ports(ip_addr: Ipv4Addr, open_ports: Vec<u16>) {
     println!("\nOpen ports on {}:", ip_addr);
@@ -20,8 +23,8 @@ fn print_ports(ip_addr: Ipv4Addr, open_ports: Vec<u16>) {
     }
 }
 
-pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, ping_prohibited: bool, maximum_threads: Option<usize>, thread_pool: Option<Arc<ThreadPool>>, mutex_print: Option<&Arc<Mutex<bool>>>, sudo_missing_printed: Option<Arc<AtomicBool>>) {
-    if !ping_prohibited {
+pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, flags: Flags, thread_pool: Option<Arc<ThreadPool>>, mutex_print: Option<&Arc<Mutex<bool>>>, sudo_missing_printed: Option<Arc<AtomicBool>>) {
+    if !flags.ping_prohibited {
         match ping(IpAddr::from(ip_addr), Some(Duration::new(1, 0)), None, None, None, None) {
             Ok(_) => {},
             Err(error) => {
@@ -42,13 +45,19 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, ping_prohibit
         if is_arc_thread_pool {
             thread_pool.unwrap()
         } else {
-            Arc::new(ThreadPool::new(maximum_threads.unwrap_or_else(|| MAXIMUM_THREADS)))
+            Arc::new(ThreadPool::new({
+                if flags.maximum_threads.1 {
+                    flags.maximum_threads.0
+                } else {
+                    MAXIMUM_THREADS_FOR_SINGLE_IP
+                }
+            }))
         }
     };
     let (tx, rx) = mpsc::channel();
 
     for port in 0..=u16::MAX {
-        if !scan_all_ports && !COMMON_PORTS.iter().find(|&&x| x.0 == port).is_some() {
+        if !flags.scan_all_ports && !COMMON_PORTS.iter().find(|&&x| x.0 == port).is_some() {
             continue;
         }
 
@@ -96,10 +105,16 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, scan_all_ports: bool, ping_prohibit
     }
 }
 
-pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_ports: bool, ping_prohibited: bool, maximum_threads: Option<usize>, mutex_print: Option<&Arc<Mutex<bool>>>) {
+pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, flags: Flags, mutex_print: Option<&Arc<Mutex<bool>>>) {
 	let start = u32::from(start_ip);
 	let end = u32::from(end_ip);
-    let pool = Arc::new(ThreadPool::new(maximum_threads.unwrap_or(MAXIMUM_THREADS)));
+    let pool = Arc::new(ThreadPool::new({
+        if flags.maximum_threads.1 {
+            flags.maximum_threads.0
+        } else {
+            MAXIMUM_THREADS
+        }
+    }));
     let mutex_print = {
         if mutex_print.is_some() {
             mutex_print.unwrap().clone()
@@ -113,12 +128,11 @@ pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_p
         let pool_clone = Arc::clone(&pool);
         let mutex_print_clone = mutex_print.clone();
         let sudo_missing_printed_clone = Arc::clone(&sudo_missing_printed);
+        let flags_clone = flags.clone();
         pool.execute(move || {
             scan_ports_from_ip(
                 Ipv4Addr::from(ip_num),
-                scan_all_ports,
-                ping_prohibited,
-                None,
+                flags_clone,
                 Some(pool_clone),
                 Some(&mutex_print_clone),
                 Some(sudo_missing_printed_clone)
@@ -129,7 +143,7 @@ pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, scan_all_p
     pool.join();
 }
 
-pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, scan_all_ports: bool, ping_prohibited: bool, maximum_threads: Option<usize>) {
+pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, flags: Flags) {
 	let host_bits = 32 - cidr;
 	let num_ips = 1 << host_bits;
     let mutex_print = Arc::new(Mutex::new(false));
@@ -137,9 +151,7 @@ pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, scan_all_ports: b
 	scan_ports_from_ip_range(
         subnet,
         Ipv4Addr::from(u32::from(subnet) + num_ips - 1),
-        scan_all_ports,
-        ping_prohibited,
-        maximum_threads,
+        flags,
         Some(&mutex_print)
     );
 }
