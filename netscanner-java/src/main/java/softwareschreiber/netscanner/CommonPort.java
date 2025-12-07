@@ -1,10 +1,10 @@
-package softwareschreiber.networkscanner;
+package softwareschreiber.netscanner;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public enum CommonPorts {
+public enum CommonPort {
 	FTP_DATA(20, "FTP-data"),
 	FTP(21, "FTP"),
 	SSH(22, "SSH"),
@@ -76,7 +76,7 @@ public enum CommonPorts {
 	private final int port;
 	private final String description;
 
-	CommonPorts(int port, String description) {
+	CommonPort(int port, String description) {
 		this.port = port;
 		this.description = description;
 	}
@@ -94,19 +94,19 @@ public enum CommonPorts {
 		return port + " - " + description;
 	}
 
-	public static final Map<Integer, CommonPorts> PORT_MAP;
+	public static final Map<Integer, CommonPort> PORT_MAP;
 
 	static {
-		Map<Integer, CommonPorts> map = new HashMap<>();
+		Map<Integer, CommonPort> map = new HashMap<>();
 
-		for (CommonPorts cp : values()) {
+		for (CommonPort cp : values()) {
 			map.put(cp.port, cp);
 		}
 
 		PORT_MAP = Collections.unmodifiableMap(map);
 	}
 
-	public static CommonPorts fromPort(int port) {
+	public static CommonPort fromPort(int port) {
 		return PORT_MAP.get(port);
 	}
 }

@@ -1,0 +1,12 @@
+# IntelliJ Idea
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Other IDEs
+.eclipse/
+.vscode/
+
+# MacOS
+*.DS_Store

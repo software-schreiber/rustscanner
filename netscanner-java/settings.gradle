@@ -9,4 +9,4 @@ pluginManagement {
 	}
 }
 
-rootProject.name = 'softwareschreiber-networkscanner'
+rootProject.name = 'softwareschreiber-netscanner'

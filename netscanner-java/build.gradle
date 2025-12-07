@@ -24,23 +24,23 @@ spotless {
 }
 
 version = rootProject.version
-group = 'softwareschreiber.networkscanner'
+group = 'softwareschreiber.netscanner'
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.encoding = 'UTF-8'
-	it.options.release = 21
+	it.options.release = 25
 }
 
 java {
 	withSourcesJar()
 	withJavadocJar()
 
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
 
-	if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
+	if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_25)) {
 		toolchain {
-			languageVersion = JavaLanguageVersion.of(21)
+			languageVersion = JavaLanguageVersion.of(25)
 		}
 	}
 }
@@ -61,7 +61,7 @@ test {
 }
 
 application {
-	mainClass = 'softwareschreiber.networkscanner.Main'
+	mainClass = 'softwareschreiber.netscanner.Main'
 }
 
 jar {

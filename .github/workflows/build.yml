@@ -1,0 +1,25 @@
+name: Build
+on: [push, pull_request]
+jobs:
+  build-java:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+      - uses: actions/checkout@v4
+      - uses: gradle/actions/wrapper-validation@v4
+      - name: Test and Build
+        working-directory: ./netscanner-java
+        run: ./gradlew build --stacktrace --warning-mode fail
+  build-rust:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        working-directory: ./netscanner-rust
+        run: cargo build --verbose
+      - name: Test
+        working-directory: ./netscanner-rust
+        run: cargo test --verbose

@@ -5,8 +5,8 @@ edition = "2024"
 
 [[bin]]
 name = "rustscanner"
-path = "./rust/src/main.rs"
+path = "./src/main.rs"
 
 [dependencies]
 threadpool = "1.8.0"
-ping = "0.6"
+ping = "0.6.0"

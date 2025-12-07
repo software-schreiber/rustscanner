@@ -5,11 +5,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::{Relaxed};
 use ping::ping;
 use threadpool::ThreadPool;
-use crate::Flags;
-
-pub const MAXIMUM_THREADS: usize = 512;
-const MAXIMUM_THREADS_FOR_SINGLE_IP: usize = 50;
-
+use crate::ScanFlags;
 
 fn print_ports(ip_addr: Ipv4Addr, open_ports: Vec<u16>) {
     println!("\nOpen ports on {}:", ip_addr);
@@ -23,7 +19,7 @@ fn print_ports(ip_addr: Ipv4Addr, open_ports: Vec<u16>) {
     }
 }
 
-pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, flags: Flags, thread_pool: Option<Arc<ThreadPool>>, mutex_print: Option<&Arc<Mutex<bool>>>, sudo_missing_printed: Option<Arc<AtomicBool>>) {
+pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, flags: ScanFlags, thread_pool: Option<Arc<ThreadPool>>, mutex_print: Option<&Arc<Mutex<bool>>>, sudo_missing_printed: Option<Arc<AtomicBool>>) {
     if !flags.ping_prohibited {
         match ping(IpAddr::from(ip_addr), Some(Duration::new(1, 0)), None, None, None, None) {
             Ok(_) => {},
@@ -45,16 +41,10 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, flags: Flags, thread_pool: Option<A
         if is_arc_thread_pool {
             thread_pool.unwrap()
         } else {
-            Arc::new(ThreadPool::new({
-                if flags.maximum_threads.1 {
-                    flags.maximum_threads.0
-                } else {
-                    MAXIMUM_THREADS_FOR_SINGLE_IP
-                }
-            }))
+            Arc::new(ThreadPool::new(flags.max_threads))
         }
     };
-    let (tx, rx) = mpsc::channel();
+    let (out_channel, in_channel) = mpsc::channel();
 
     for port in 0..=u16::MAX {
         if !flags.scan_all_ports && !COMMON_PORTS.iter().find(|&&x| x.0 == port).is_some() {
@@ -62,17 +52,17 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, flags: Flags, thread_pool: Option<A
         }
 
         let host_clone = ip_addr.clone();
-        let tx_clone = tx.clone();
+        let out_channel_clone = out_channel.clone();
 
-		pool.execute(move || {
+        pool.execute(move || {
             let addr_str = format!("{}:{}", host_clone, port);
             match addr_str.to_socket_addrs() {
                 Ok(addrs) => {
                     for addr in addrs {
                         match TcpStream::connect_timeout(&addr, Duration::from_secs(3)) {
                             Ok(_) => {
-                                match tx_clone.send(port) {
-                                    Ok(()) => {}
+                                match out_channel_clone.send(port) {
+                                    Ok(_) => {}
                                     Err(_) => {}
                                 }
                                 break;
@@ -87,12 +77,12 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, flags: Flags, thread_pool: Option<A
 
     }
 
-    drop(tx);
+    drop(out_channel);
     if !is_arc_thread_pool {
         pool.join();
     }
 
-    let mut open_ports: Vec<u16> = rx.iter().collect();
+    let mut open_ports: Vec<u16> = in_channel.iter().collect();
     open_ports.sort_unstable();
     if open_ports.len() != 0 {
         if mutex_print.is_some() {
@@ -105,16 +95,10 @@ pub fn scan_ports_from_ip(ip_addr: Ipv4Addr, flags: Flags, thread_pool: Option<A
     }
 }
 
-pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, flags: Flags, mutex_print: Option<&Arc<Mutex<bool>>>) {
-	let start = u32::from(start_ip);
-	let end = u32::from(end_ip);
-    let pool = Arc::new(ThreadPool::new({
-        if flags.maximum_threads.1 {
-            flags.maximum_threads.0
-        } else {
-            MAXIMUM_THREADS
-        }
-    }));
+pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, flags: ScanFlags, mutex_print: Option<&Arc<Mutex<bool>>>) {
+    let start = u32::from(start_ip);
+    let end = u32::from(end_ip);
+    let pool = Arc::new(ThreadPool::new(flags.max_threads));
     let mutex_print = {
         if mutex_print.is_some() {
             mutex_print.unwrap().clone()
@@ -137,18 +121,18 @@ pub fn scan_ports_from_ip_range(start_ip: Ipv4Addr, end_ip: Ipv4Addr, flags: Fla
                 Some(&mutex_print_clone),
                 Some(sudo_missing_printed_clone)
             );
-		});
-	}
+        });
+    }
 
     pool.join();
 }
 
-pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, flags: Flags) {
-	let host_bits = 32 - cidr;
-	let num_ips = 1 << host_bits;
+pub fn scan_ports_from_subnet_cidr(subnet: Ipv4Addr, cidr: u8, flags: ScanFlags) {
+    let host_bits = 32 - cidr;
+    let num_ips = 1 << host_bits;
     let mutex_print = Arc::new(Mutex::new(false));
 
-	scan_ports_from_ip_range(
+    scan_ports_from_ip_range(
         subnet,
         Ipv4Addr::from(u32::from(subnet) + num_ips - 1),
         flags,
@@ -217,7 +201,7 @@ const COMMON_PORTS: &[(u16, &str)] = &[
     (5900, "VNC"),
     (6379, "Redis"),
     (8000, "Alternate HTTP / admin"),
-	(8006, "Proxmox VE web GUI"),
+    (8006, "Proxmox VE web GUI"),
     (8008, "Alternate HTTP"),
     (8080, "Alternate HTTP / proxy"),
     (8443, "HTTPS-alt / admin"),
